@@ -2,9 +2,9 @@ name: 构建字幕遮挡工具 APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main1, master1 ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main1, master1 ]
   workflow_dispatch:  # 允许手动触发
 
 jobs:
