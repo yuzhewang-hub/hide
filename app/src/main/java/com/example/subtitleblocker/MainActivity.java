@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.widget.Button;
 import android.widget.Toast;
+import android.widget.SeekBar;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.appcompat.widget.AppCompatSeekBar;
@@ -17,37 +18,63 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_OVERLAY_PERMISSION = 100;
     private Button btnToggle;
     private SwitchCompat switchOverlay;
+    private SwitchCompat switchLock;
     private AppCompatSeekBar seekBarAlpha;
     private TextView tvAlpha;
     private boolean overlayActive = false;
+    private OverlayPreferences preferences;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        preferences = new OverlayPreferences(this);
+
         btnToggle = findViewById(R.id.btnToggle);
         switchOverlay = findViewById(R.id.switchOverlay);
+        switchLock = findViewById(R.id.switchLock);
         seekBarAlpha = findViewById(R.id.seekBarAlpha);
         tvAlpha = findViewById(R.id.tvAlpha);
 
+        // 恢复保存的透明度设置
+        float savedAlpha = preferences.getAlpha();
+        int alphaProgress = (int) (savedAlpha * 100);
+        seekBarAlpha.setProgress(alphaProgress);
+        tvAlpha.setText("透明度: " + alphaProgress + "%");
+
+        // 恢复锁定状态
+        boolean savedLocked = preferences.isLocked();
+        switchLock.setChecked(savedLocked);
+
         // 设置透明度滑动条
-        seekBarAlpha.setOnSeekBarChangeListener(new AppCompatSeekBar.OnSeekBarChangeListener() {
+        seekBarAlpha.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
-            public void onProgressChanged(AppCompatSeekBar seekBar, int progress, boolean fromUser) {
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 tvAlpha.setText("透明度: " + progress + "%");
+                if (fromUser && overlayActive && OverlayService.serviceInstance != null) {
+                    OverlayView overlayView = OverlayService.serviceInstance.getOverlayView();
+                    if (overlayView != null) {
+                        float alpha = progress / 100f;
+                        overlayView.saveAlpha(alpha);
+                    }
+                }
             }
 
             @Override
-            public void onStartTrackingTouch(AppCompatSeekBar seekBar) {}
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
 
             @Override
-            public void onStopTrackingTouch(AppCompatSeekBar seekBar) {
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                int progress = seekBar.getProgress();
+                float alpha = progress / 100f;
+                preferences.saveAlpha(alpha);
+
                 if (overlayActive && OverlayService.serviceInstance != null) {
                     OverlayView overlayView = OverlayService.serviceInstance.getOverlayView();
                     if (overlayView != null) {
-                        float alpha = seekBar.getProgress() / 100f;
-                        overlayView.setAlpha(alpha);
+                        overlayView.saveAlpha(alpha);
                     }
                 }
             }
@@ -59,6 +86,18 @@ public class MainActivity extends AppCompatActivity {
                 startOverlay();
             } else {
                 stopOverlay();
+            }
+        });
+
+        // 锁定开关
+        switchLock.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            preferences.saveLocked(isChecked);
+            if (overlayActive && OverlayService.serviceInstance != null) {
+                OverlayView overlayView = OverlayService.serviceInstance.getOverlayView();
+                if (overlayView != null) {
+                    overlayView.setLocked(isChecked);
+                    Toast.makeText(this, isChecked ? "已锁定" : "已解锁", Toast.LENGTH_SHORT).show();
+                }
             }
         });
 
@@ -132,4 +171,3 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 }
-
